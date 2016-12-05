@@ -1,0 +1,4 @@
+rootProject.name = "contractfirst-swagger"
+
+include "petstore-api"
+

@@ -1,0 +1,48 @@
+plugins {
+
+	id 'org.asciidoctor.convert' version '1.5.3'
+	id 'org.hidetake.swagger.generator' version '1.4.0'
+}
+
+group "br.com.medium.arthurfnsc"
+version "1.0.0"
+
+ext {
+
+	springFoxArtifacts = ["springfox-swagger2", "springfox-swagger-ui"]
+
+	springFoxVersion = "2.6.0"
+	swaggerCodeGenVersion = "2.2.1"
+}
+
+dependencies {
+
+	compile("org.springframework.boot:spring-boot-starter-web")
+
+	springFoxArtifacts.each {
+		artifact -> compile("io.springfox:$artifact:$springFoxVersion")
+	}
+
+	swaggerCodegen("io.swagger:swagger-codegen-cli:$swaggerCodeGenVersion")
+}
+
+task copySwaggerGeneratedCode(type: Copy) {
+	
+	from "${buildDir}/swagger-code"
+	into "${projectDir}"
+}
+
+generateSwaggerCode {
+
+	configFile = file('src/main/resources/swagger/config.json')
+	components = ['models', 'apis']
+	inputFile = file('src/main/resources/swagger/petstore-api.json')
+	language = 'spring'
+}
+
+generateSwaggerCode.finalizedBy(project.tasks.copySwaggerGeneratedCode)
+
+generateSwaggerDoc {
+	inputFile = file('src/main/resources/swagger/petstore-api.json')
+}
+

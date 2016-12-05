@@ -1,0 +1,221 @@
+group 'br.com.medium.arthurfnsc'
+version '1.0.0'
+
+apply plugin: 'project-report'
+
+htmlDependencyReport { projects = project.allprojects }
+
+buildscript {
+
+	ext {
+
+		beanManesVersion = "0.13.0"
+		sonarVersion = "2.2"
+		springBootVersion = '1.4.2.RELEASE'
+	}
+
+	repositories {
+
+		jcenter()
+		mavenCentral()
+	}
+
+	dependencies {
+
+		classpath("com.github.ben-manes:gradle-versions-plugin:$beanManesVersion")
+		classpath("org.sonarsource.scanner.gradle:sonarqube-gradle-plugin:$sonarVersion")
+		classpath("org.springframework.boot:spring-boot-gradle-plugin:$springBootVersion")
+	}
+}
+
+subprojects {
+
+	apply plugin: 'checkstyle'
+	apply plugin: 'com.github.ben-manes.versions'
+	apply plugin: 'eclipse'
+	apply plugin: 'findbugs'
+	apply plugin: 'java'
+	apply plugin: 'jacoco'
+	apply plugin: 'org.sonarqube'
+	apply plugin: 'org.springframework.boot'
+	apply plugin: 'pmd'
+
+	sourceCompatibility = 1.8
+	targetCompatibility = 1.8
+
+	def defaultEncoding = 'UTF-8'
+	[compileJava, compileTestJava]*.options*.encoding = defaultEncoding
+
+	def coverageSourceDirs = ['src/main/java']
+
+	ext {
+
+		hamcrestVersion = "1.3"
+		testNGVersion = "6.9.13.8"
+	}
+
+	repositories {
+
+		jcenter()
+		mavenCentral()
+	}
+
+	dependencies {
+
+		testCompile("org.hamcrest:hamcrest-all:$hamcrestVersion")
+		testCompile("org.springframework.boot:spring-boot-starter-test")
+		testCompile("org.testng:testng:$testNGVersion")
+	}
+
+	checkstyle {
+
+		configFile = file("$buildDir/resources/main/checkstyle/checkstyle.xml")
+		toolVersion = "6.0"
+	}
+
+	checkstyleMain {
+		doLast {
+			ant.xslt(
+					in: "$buildDir/reports/checkstyle/main.xml",
+					style:"$buildDir/resources/main/checkstyle/checkstyle.xsl",
+					out:"$buildDir/reports/checkstyle/main.html"
+					)
+		}
+	}
+
+	dependencyUpdates.resolutionStrategy = {
+		componentSelection { rules ->
+			rules.all { ComponentSelection selection ->
+				boolean rejected = [
+					'alpha',
+					'beta',
+					'rc',
+					'cr',
+					'm'
+				].any { qualifier ->
+					selection.candidate.version ==~ /(?i).*[.-]${qualifier}[.\d-]*/
+				}
+				if (rejected) {
+					selection.reject('Release candidate')
+				}
+			}
+		}
+	}
+
+	findbugs {
+
+		effort = "max"
+		reportsDir = file("$buildDir/reports/findbugs")
+		sourceSets = [sourceSets.main]
+	}
+
+	findbugsMain {
+		reports {
+
+			html.enabled = true
+			xml.enabled = false
+		}
+	}
+
+	jacoco { toolVersion = '0.7.6+' }
+
+	jacocoTestReport {
+
+		additionalSourceDirs = files(sourceSets.main.allSource.srcDirs)
+		classDirectories =  files(sourceSets.main.output)
+		sourceDirectories = files(sourceSets.main.allSource.srcDirs)
+
+		reports {
+
+			csv.enabled false
+
+			html{
+				enabled true
+				destination "${buildDir}/reports/jacoco"
+			}
+
+			xml.enabled false
+		}
+	}
+
+	pmd {
+
+		ignoreFailures = true
+		reportsDir = file("$project.buildDir/reports/pmd")
+		ruleSets = [
+			'java-basic',
+			'java-braces',
+			'java-clone',
+			'java-codesize',
+			'java-controversial',
+			'java-coupling',
+			'java-design',
+			'java-empty',
+			'java-finalizers',
+			'java-imports',
+			'java-j2ee',
+			'java-javabeans',
+			'java-junit',
+			'java-logging-jakarta-commons',
+			'java-logging-java',
+			'java-migrating',
+			'java-naming',
+			'java-optimizations',
+			'java-strictexception',
+			'java-strings',
+			'java-sunsecure',
+			'java-typeresolution',
+			'java-unnecessary',
+			'java-unusedcode'
+		]
+
+		sourceSets = [sourceSets.main]
+	}
+
+	pmdMain {
+		reports {
+
+			html.enabled = true
+			xml.enabled = false
+		}
+	}
+
+	sonarqube {
+		properties {
+			property "sonar.projectName", "Java :: Simple Project :: SonarQube Scanner for Gradle"
+			property "sonar.projectKey", "org.sonarqube:java-gradle-simple"
+			property "sonar.jacoco.reportPath", "${project.buildDir}/jacoco/test.exec"
+		}
+	}
+
+	test {  useTestNG() }
+
+	test.finalizedBy(project.tasks.jacocoTestReport)
+
+	task jacocoRootReport(type: org.gradle.testing.jacoco.tasks.JacocoReport) {
+
+		additionalSourceDirs = files(subprojects.sourceSets.main.allSource.srcDirs)
+		classDirectories = files(subprojects.sourceSets.main.output)
+		dependsOn = subprojects.test
+		executionData = files(subprojects.jacocoTestReport.executionData)
+		sourceDirectories = files(subprojects.sourceSets.main.allSource.srcDirs)
+
+		reports {
+
+			csv.enabled false
+
+			html{
+				enabled true
+				destination "${buildDir}/reports/jacoco"
+			}
+
+			xml.enabled false
+		}
+
+		onlyIf = { true }
+
+		doFirst {
+			executionData = files(executionData.findAll { it.exists() })
+		}
+	}
+}
